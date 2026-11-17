@@ -1,0 +1,464 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Primitives & Auth Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isBootstrappedSuperAdmin() {
+      return isSignedIn() &&
+        ('email' in request.auth.token) &&
+        ('email_verified' in request.auth.token) &&
+        request.auth.token.email == 'maricelavallejo731@gmail.com' &&
+        request.auth.token.email_verified == true;
+    }
+
+    function hasDirectoryRole(allowedRoles) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/user_directory/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/user_directory/$(request.auth.uid)).data.role in allowedRoles;
+    }
+
+    function isSuperAdmin() {
+      return isBootstrappedSuperAdmin() || hasDirectoryRole(['SUPER_ADMIN']);
+    }
+
+    function isRaceDirectorOrAbove() {
+      return isBootstrappedSuperAdmin() || hasDirectoryRole(['SUPER_ADMIN', 'RACE_DIRECTOR']);
+    }
+
+    function isTimekeeperOrAbove() {
+      return isBootstrappedSuperAdmin() || hasDirectoryRole(['SUPER_ADMIN', 'RACE_DIRECTOR', 'TIMEKEEPER']);
+    }
+
+    function isValidRole(role) {
+      return role in ['SUPER_ADMIN', 'RACE_DIRECTOR', 'TIMEKEEPER', 'SPECTATOR'];
+    }
+
+    function isValidTimestampsCreate(data) {
+      return data.createdAt is timestamp &&
+        data.createdAt <= request.time &&
+        data.updatedAt is timestamp &&
+        data.updatedAt <= request.time;
+    }
+
+    function isValidTimestampsUpdate(data) {
+      return data.createdAt == existing().createdAt &&
+        data.updatedAt is timestamp &&
+        data.updatedAt <= request.time;
+    }
+
+    // 3. Validation Blueprints
+    function isValidUserPrivate(data) {
+      return data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+        data.role is string && isValidRole(data.role);
+    }
+
+    function isValidUserDirectory(data) {
+      return data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+        data.role is string && isValidRole(data.role) &&
+        data.isDirectoryVisible is bool;
+    }
+
+    function isValidChampionship(data) {
+      return data.name is string && data.name.size() >= 2 && data.name.size() <= 120 &&
+        data.seasonYear is int && data.seasonYear >= 1950 && data.seasonYear <= 2100 &&
+        data.category is string && data.category.size() >= 2 && data.category.size() <= 80 &&
+        data.status in ['UPCOMING', 'ACTIVE', 'FINISHED'] &&
+        data.visibility == 'PUBLIC' &&
+        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128;
+    }
+
+    function isValidCircuit(data) {
+      return data.name is string && data.name.size() >= 2 && data.name.size() <= 120 &&
+        data.country is string && data.country.size() >= 2 && data.country.size() <= 80 &&
+        data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 4 &&
+        data.lengthKm is number && data.lengthKm > 0 && data.lengthKm <= 50.0 &&
+        data.turnsCount is int && data.turnsCount >= 1 && data.turnsCount <= 200 &&
+        data.sectorCount is int && data.sectorCount >= 1 && data.sectorCount <= 6 &&
+        data.startFinishLabel is string && data.startFinishLabel.size() >= 1 && data.startFinishLabel.size() <= 100 &&
+        data.sectorSplits is list && data.sectorSplits.size() >= 1 && data.sectorSplits.size() <= 6 &&
+        data.measurementPoints is list && data.measurementPoints.size() <= 16 &&
+        (data.measurementPoints.size() == 0 || data.measurementPoints[0] is string) &&
+        data.trackPoints is list && data.trackPoints.size() >= 3 && data.trackPoints.size() <= 64 &&
+        (data.trackPoints[0] is string) &&
+        (!('customImageUri' in data) || (data.customImageUri is string && data.customImageUri.size() <= 500)) &&
+        data.visibility == 'PUBLIC' &&
+        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128;
+    }
+
+    function isValidRaceEvent(data) {
+      return data.championshipId is string && isValidId(data.championshipId) &&
+        data.circuitId is string && isValidId(data.circuitId) &&
+        data.circuitName is string && data.circuitName.size() >= 2 && data.circuitName.size() <= 120 &&
+        data.grandPrixName is string && data.grandPrixName.size() >= 2 && data.grandPrixName.size() <= 140 &&
+        data.country is string && data.country.size() >= 2 && data.country.size() <= 80 &&
+        data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 4 &&
+        data.eventDateMillis is int && data.eventDateMillis >= 0 &&
+        data.practiceSchedule is string && data.practiceSchedule.size() <= 100 &&
+        data.qualifyingSchedule is string && data.qualifyingSchedule.size() <= 100 &&
+        data.raceSchedule is string && data.raceSchedule.size() <= 100 &&
+        data.raceDurationLabel is string && data.raceDurationLabel.size() <= 80 &&
+        data.status in ['UPCOMING', 'LIVE', 'FINISHED'] &&
+        data.roundNumber is int && data.roundNumber >= 1 && data.roundNumber <= 100 &&
+        data.visibility == 'PUBLIC' &&
+        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128;
+    }
+
+    function isValidSession(data) {
+      return data.eventId is string && isValidId(data.eventId) &&
+        data.championshipId is string && isValidId(data.championshipId) &&
+        data.circuitId is string && isValidId(data.circuitId) &&
+        data.circuitName is string && data.circuitName.size() >= 2 && data.circuitName.size() <= 120 &&
+        data.sessionName is string && data.sessionName.size() >= 2 && data.sessionName.size() <= 100 &&
+        data.sessionType in ['PRACTICE', 'QUALIFYING', 'RACE'] &&
+        data.status in ['SCHEDULED', 'ACTIVE', 'PAUSED', 'FINISHED'] &&
+        data.flagStatus in ['GREEN', 'YELLOW', 'RED', 'CHECKERED'] &&
+        data.timingMode in ['MANUAL', 'GPS', 'EXTERNAL_BLE_API'] &&
+        data.totalLapsTarget is int && data.totalLapsTarget >= 0 && data.totalLapsTarget <= 500 &&
+        data.durationMinutes is int && data.durationMinutes >= 1 && data.durationMinutes <= 1440 &&
+        data.startedAtEpochMs is int && data.startedAtEpochMs >= 0 &&
+        data.elapsedPausedMs is int && data.elapsedPausedMs >= 0 &&
+        data.bestSessionLapMs is int && data.bestSessionLapMs >= 0 &&
+        data.bestSessionLapDriverId is string && data.bestSessionLapDriverId.size() <= 128 &&
+        data.bestSector1Ms is int && data.bestSector1Ms >= 0 &&
+        data.bestSector2Ms is int && data.bestSector2Ms >= 0 &&
+        data.bestSector3Ms is int && data.bestSector3Ms >= 0 &&
+        data.sectorCount is int && data.sectorCount >= 1 && data.sectorCount <= 6 &&
+        data.visibility == 'PUBLIC' &&
+        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128;
+    }
+
+    function isValidSessionEntry(data) {
+      return data.sessionId is string && isValidId(data.sessionId) &&
+        data.eventId is string && isValidId(data.eventId) &&
+        data.championshipId is string && isValidId(data.championshipId) &&
+        data.driverName is string && data.driverName.size() >= 2 && data.driverName.size() <= 100 &&
+        data.driverCode is string && data.driverCode.size() >= 2 && data.driverCode.size() <= 5 &&
+        data.nationality is string && data.nationality.size() >= 2 && data.nationality.size() <= 80 &&
+        data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 4 &&
+        data.teamName is string && data.teamName.size() >= 2 && data.teamName.size() <= 100 &&
+        data.teamColorHex is string && data.teamColorHex.size() >= 4 && data.teamColorHex.size() <= 12 &&
+        data.carModel is string && data.carModel.size() >= 1 && data.carModel.size() <= 80 &&
+        data.carNumber is int && data.carNumber >= 0 && data.carNumber <= 999 &&
+        data.driverStatus in ['ON_TRACK', 'IN_PITS', 'RETIRED', 'OUT_OF_SESSION'] &&
+        data.position is int && data.position >= 1 && data.position <= 200 &&
+        data.lapsCompleted is int && data.lapsCompleted >= 0 && data.lapsCompleted <= 1000 &&
+        data.lastLapMs is int && data.lastLapMs >= 0 &&
+        data.bestLapMs is int && data.bestLapMs >= 0 &&
+        data.totalTimeMs is int && data.totalTimeMs >= 0 &&
+        data.currentSector1Ms is int && data.currentSector1Ms >= 0 &&
+        data.currentSector2Ms is int && data.currentSector2Ms >= 0 &&
+        data.currentSector3Ms is int && data.currentSector3Ms >= 0 &&
+        data.bestSector1Ms is int && data.bestSector1Ms >= 0 &&
+        data.bestSector2Ms is int && data.bestSector2Ms >= 0 &&
+        data.bestSector3Ms is int && data.bestSector3Ms >= 0 &&
+        data.penaltySeconds is int && data.penaltySeconds >= 0 && data.penaltySeconds <= 3600 &&
+        data.pointsAwarded is int && data.pointsAwarded >= 0 && data.pointsAwarded <= 100 &&
+        data.hasFastestLap is bool &&
+        data.visibility == 'PUBLIC' &&
+        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128;
+    }
+
+    function isValidLap(data) {
+      return data.sessionId is string && isValidId(data.sessionId) &&
+        data.entryId is string && isValidId(data.entryId) &&
+        data.driverName is string && data.driverName.size() >= 2 && data.driverName.size() <= 100 &&
+        data.carNumber is int && data.carNumber >= 0 && data.carNumber <= 999 &&
+        data.lapNumber is int && data.lapNumber >= 1 && data.lapNumber <= 1000 &&
+        data.lapTimeMs is int && data.lapTimeMs > 0 && data.lapTimeMs <= 36000000 &&
+        data.sectorTimesMs is list && data.sectorTimesMs.size() >= 1 && data.sectorTimesMs.size() <= 6 &&
+        (data.sectorTimesMs[0] is int) &&
+        data.isValid is bool &&
+        data.invalidReason is string && data.invalidReason.size() <= 160 &&
+        data.isPersonalBest is bool &&
+        data.isSessionBest is bool &&
+        data.recordedByUid is string && data.recordedByUid.size() >= 1 && data.recordedByUid.size() <= 128 &&
+        data.timingSource in ['MANUAL', 'GPS', 'BLUETOOTH', 'WIFI_API'] &&
+        data.gpsAccuracyMeters is number && data.gpsAccuracyMeters >= 0 && data.gpsAccuracyMeters <= 10000 &&
+        data.recordedAtEpochMs is int && data.recordedAtEpochMs >= 0 &&
+        data.visibility == 'PUBLIC';
+    }
+
+    function isValidPenalty(data) {
+      return data.sessionId is string && isValidId(data.sessionId) &&
+        data.entryId is string && isValidId(data.entryId) &&
+        data.driverName is string && data.driverName.size() >= 2 && data.driverName.size() <= 100 &&
+        data.carNumber is int && data.carNumber >= 0 && data.carNumber <= 999 &&
+        data.penaltyType in ['TIME_5S', 'TIME_10S', 'DRIVE_THROUGH', 'GRID_DROP', 'WARNING', 'DISQUALIFIED'] &&
+        data.secondsAdded is int && data.secondsAdded >= 0 && data.secondsAdded <= 3600 &&
+        data.reason is string && data.reason.size() >= 2 && data.reason.size() <= 240 &&
+        data.issuedByUid is string && data.issuedByUid.size() >= 1 && data.issuedByUid.size() <= 128 &&
+        data.visibility == 'PUBLIC';
+    }
+
+    // 4. Collection Rules
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isBootstrappedSuperAdmin());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isBootstrappedSuperAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(userId) &&
+        request.auth.uid == userId &&
+        incoming().uid == request.auth.uid &&
+        incoming().keys().hasAll(['uid', 'email', 'displayName', 'role', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['uid', 'email', 'displayName', 'role', 'createdAt', 'updatedAt']) &&
+        isValidTimestampsCreate(incoming()) &&
+        isValidUserPrivate(incoming()) &&
+        (incoming().role == 'SPECTATOR' || (isBootstrappedSuperAdmin() && incoming().role == 'SUPER_ADMIN'));
+
+      allow update: if isSignedIn() &&
+        isValidId(userId) &&
+        isValidTimestampsUpdate(incoming()) &&
+        isValidUserPrivate(incoming()) &&
+        incoming().uid == existing().uid && (
+          (request.auth.uid == userId &&
+           incoming().role == existing().role &&
+           incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'updatedAt'])) ||
+          (isBootstrappedSuperAdmin() &&
+           incoming().diff(existing()).affectedKeys().hasOnly(['role', 'updatedAt']))
+        );
+
+      allow delete: if false;
+    }
+
+    match /user_directory/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || resource == null || resource.data.isDirectoryVisible == true);
+      allow list: if isSignedIn() && resource.data.isDirectoryVisible == true;
+
+      allow create: if isSignedIn() &&
+        isValidId(userId) &&
+        request.auth.uid == userId &&
+        incoming().uid == request.auth.uid &&
+        incoming().keys().hasAll(['uid', 'displayName', 'role', 'isDirectoryVisible', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['uid', 'displayName', 'role', 'isDirectoryVisible', 'createdAt', 'updatedAt']) &&
+        incoming().isDirectoryVisible == true &&
+        isValidTimestampsCreate(incoming()) &&
+        isValidUserDirectory(incoming()) &&
+        (incoming().role == 'SPECTATOR' || (isBootstrappedSuperAdmin() && incoming().role == 'SUPER_ADMIN'));
+
+      allow update: if isSignedIn() &&
+        isValidId(userId) &&
+        isValidTimestampsUpdate(incoming()) &&
+        isValidUserDirectory(incoming()) &&
+        incoming().uid == existing().uid && (
+          (request.auth.uid == userId &&
+           incoming().role == existing().role &&
+           incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt'])) ||
+          (isSuperAdmin() &&
+           incoming().diff(existing()).affectedKeys().hasOnly(['role', 'updatedAt']))
+        );
+
+      allow delete: if isSignedIn() && isValidId(userId) && isSuperAdmin() && userId != request.auth.uid;
+    }
+
+    match /championships/{championshipId} {
+      allow get: if isSignedIn() && isValidId(championshipId) && (resource == null || resource.data.visibility == 'PUBLIC');
+      allow list: if isSignedIn() && resource.data.visibility == 'PUBLIC';
+
+      allow create: if isSignedIn() &&
+        isValidId(championshipId) &&
+        isSuperAdmin() &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().keys().hasAll(['name', 'seasonYear', 'category', 'status', 'visibility', 'ownerId', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['name', 'seasonYear', 'category', 'status', 'visibility', 'ownerId', 'createdAt', 'updatedAt']) &&
+        isValidTimestampsCreate(incoming()) &&
+        isValidChampionship(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(championshipId) &&
+        isSuperAdmin() &&
+        isValidTimestampsUpdate(incoming()) &&
+        isValidChampionship(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'seasonYear', 'category', 'status', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(championshipId) && isSuperAdmin();
+    }
+
+    match /circuits/{circuitId} {
+      allow get: if isSignedIn() && isValidId(circuitId) && (resource == null || resource.data.visibility == 'PUBLIC');
+      allow list: if isSignedIn() && resource.data.visibility == 'PUBLIC';
+
+      allow create: if isSignedIn() &&
+        isValidId(circuitId) &&
+        isSuperAdmin() &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().keys().hasAll(['name', 'country', 'countryCode', 'lengthKm', 'turnsCount', 'sectorCount', 'startFinishLabel', 'sectorSplits', 'measurementPoints', 'trackPoints', 'visibility', 'ownerId', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['name', 'country', 'countryCode', 'lengthKm', 'turnsCount', 'sectorCount', 'startFinishLabel', 'sectorSplits', 'measurementPoints', 'trackPoints', 'customImageUri', 'visibility', 'ownerId', 'createdAt', 'updatedAt']) &&
+        isValidTimestampsCreate(incoming()) &&
+        isValidCircuit(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(circuitId) &&
+        isSuperAdmin() &&
+        isValidTimestampsUpdate(incoming()) &&
+        isValidCircuit(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'country', 'countryCode', 'lengthKm', 'turnsCount', 'sectorCount', 'startFinishLabel', 'sectorSplits', 'measurementPoints', 'trackPoints', 'customImageUri', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(circuitId) && isSuperAdmin();
+    }
+
+    match /race_events/{eventId} {
+      allow get: if isSignedIn() && isValidId(eventId) && (resource == null || resource.data.visibility == 'PUBLIC');
+      allow list: if isSignedIn() && resource.data.visibility == 'PUBLIC';
+
+      allow create: if isSignedIn() &&
+        isValidId(eventId) &&
+        isSuperAdmin() &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().keys().hasAll(['championshipId', 'circuitId', 'circuitName', 'grandPrixName', 'country', 'countryCode', 'eventDateMillis', 'practiceSchedule', 'qualifyingSchedule', 'raceSchedule', 'raceDurationLabel', 'status', 'roundNumber', 'visibility', 'ownerId', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['championshipId', 'circuitId', 'circuitName', 'grandPrixName', 'country', 'countryCode', 'eventDateMillis', 'practiceSchedule', 'qualifyingSchedule', 'raceSchedule', 'raceDurationLabel', 'status', 'roundNumber', 'visibility', 'ownerId', 'createdAt', 'updatedAt']) &&
+        isValidTimestampsCreate(incoming()) &&
+        isValidRaceEvent(incoming()) &&
+        exists(/databases/$(database)/documents/championships/$(incoming().championshipId)) &&
+        exists(/databases/$(database)/documents/circuits/$(incoming().circuitId));
+
+      allow update: if isSignedIn() &&
+        isValidId(eventId) &&
+        isSuperAdmin() &&
+        isValidTimestampsUpdate(incoming()) &&
+        isValidRaceEvent(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['championshipId', 'circuitId', 'circuitName', 'grandPrixName', 'country', 'countryCode', 'eventDateMillis', 'practiceSchedule', 'qualifyingSchedule', 'raceSchedule', 'raceDurationLabel', 'status', 'roundNumber', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(eventId) && isSuperAdmin();
+    }
+
+    match /sessions/{sessionId} {
+      allow get: if isSignedIn() && isValidId(sessionId) && (resource == null || resource.data.visibility == 'PUBLIC');
+      allow list: if isSignedIn() && resource.data.visibility == 'PUBLIC';
+
+      allow create: if isSignedIn() &&
+        isValidId(sessionId) &&
+        isRaceDirectorOrAbove() &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().keys().hasAll(['eventId', 'championshipId', 'circuitId', 'circuitName', 'sessionName', 'sessionType', 'status', 'flagStatus', 'timingMode', 'totalLapsTarget', 'durationMinutes', 'startedAtEpochMs', 'elapsedPausedMs', 'bestSessionLapMs', 'bestSessionLapDriverId', 'bestSector1Ms', 'bestSector2Ms', 'bestSector3Ms', 'sectorCount', 'visibility', 'ownerId', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['eventId', 'championshipId', 'circuitId', 'circuitName', 'sessionName', 'sessionType', 'status', 'flagStatus', 'timingMode', 'totalLapsTarget', 'durationMinutes', 'startedAtEpochMs', 'elapsedPausedMs', 'bestSessionLapMs', 'bestSessionLapDriverId', 'bestSector1Ms', 'bestSector2Ms', 'bestSector3Ms', 'sectorCount', 'visibility', 'ownerId', 'createdAt', 'updatedAt']) &&
+        isValidTimestampsCreate(incoming()) &&
+        isValidSession(incoming()) &&
+        exists(/databases/$(database)/documents/race_events/$(incoming().eventId));
+
+      allow update: if isSignedIn() &&
+        isValidId(sessionId) &&
+        isValidTimestampsUpdate(incoming()) &&
+        isValidSession(incoming()) &&
+        incoming().ownerId == existing().ownerId && (
+          isSuperAdmin() ||
+          (isRaceDirectorOrAbove() &&
+           (existing().status != 'FINISHED' || isSuperAdmin()) &&
+           incoming().diff(existing()).affectedKeys().hasOnly(['sessionName', 'status', 'flagStatus', 'timingMode', 'totalLapsTarget', 'durationMinutes', 'startedAtEpochMs', 'elapsedPausedMs', 'bestSessionLapMs', 'bestSessionLapDriverId', 'bestSector1Ms', 'bestSector2Ms', 'bestSector3Ms', 'updatedAt'])) ||
+          (isTimekeeperOrAbove() &&
+           existing().status == 'ACTIVE' &&
+           incoming().diff(existing()).affectedKeys().hasOnly(['bestSessionLapMs', 'bestSessionLapDriverId', 'bestSector1Ms', 'bestSector2Ms', 'bestSector3Ms', 'updatedAt']))
+        );
+
+      allow delete: if isSignedIn() && isValidId(sessionId) && isSuperAdmin();
+    }
+
+    match /session_entries/{entryId} {
+      allow get: if isSignedIn() && isValidId(entryId) && (resource == null || resource.data.visibility == 'PUBLIC');
+      allow list: if isSignedIn() && resource.data.visibility == 'PUBLIC';
+
+      allow create: if isSignedIn() &&
+        isValidId(entryId) &&
+        isRaceDirectorOrAbove() &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().keys().hasAll(['sessionId', 'eventId', 'championshipId', 'driverName', 'driverCode', 'nationality', 'countryCode', 'teamName', 'teamColorHex', 'carModel', 'carNumber', 'driverStatus', 'position', 'lapsCompleted', 'lastLapMs', 'bestLapMs', 'totalTimeMs', 'currentSector1Ms', 'currentSector2Ms', 'currentSector3Ms', 'bestSector1Ms', 'bestSector2Ms', 'bestSector3Ms', 'penaltySeconds', 'pointsAwarded', 'hasFastestLap', 'visibility', 'ownerId', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['sessionId', 'eventId', 'championshipId', 'driverName', 'driverCode', 'nationality', 'countryCode', 'teamName', 'teamColorHex', 'carModel', 'carNumber', 'driverStatus', 'position', 'lapsCompleted', 'lastLapMs', 'bestLapMs', 'totalTimeMs', 'currentSector1Ms', 'currentSector2Ms', 'currentSector3Ms', 'bestSector1Ms', 'bestSector2Ms', 'bestSector3Ms', 'penaltySeconds', 'pointsAwarded', 'hasFastestLap', 'visibility', 'ownerId', 'createdAt', 'updatedAt']) &&
+        isValidTimestampsCreate(incoming()) &&
+        isValidSessionEntry(incoming()) &&
+        exists(/databases/$(database)/documents/sessions/$(incoming().sessionId));
+
+      allow update: if isSignedIn() &&
+        isValidId(entryId) &&
+        isValidTimestampsUpdate(incoming()) &&
+        isValidSessionEntry(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().sessionId == existing().sessionId && (
+          isSuperAdmin() ||
+          (isRaceDirectorOrAbove() &&
+           incoming().diff(existing()).affectedKeys().hasOnly(['driverStatus', 'position', 'lapsCompleted', 'lastLapMs', 'bestLapMs', 'totalTimeMs', 'currentSector1Ms', 'currentSector2Ms', 'currentSector3Ms', 'bestSector1Ms', 'bestSector2Ms', 'bestSector3Ms', 'penaltySeconds', 'pointsAwarded', 'hasFastestLap', 'updatedAt'])) ||
+          (isTimekeeperOrAbove() &&
+           incoming().diff(existing()).affectedKeys().hasOnly(['position', 'lapsCompleted', 'lastLapMs', 'bestLapMs', 'totalTimeMs', 'currentSector1Ms', 'currentSector2Ms', 'currentSector3Ms', 'bestSector1Ms', 'bestSector2Ms', 'bestSector3Ms', 'hasFastestLap', 'updatedAt']))
+        );
+
+      allow delete: if isSignedIn() && isValidId(entryId) && isSuperAdmin();
+    }
+
+    match /laps/{lapId} {
+      allow get: if isSignedIn() && isValidId(lapId) && (resource == null || resource.data.visibility == 'PUBLIC');
+      allow list: if isSignedIn() && resource.data.visibility == 'PUBLIC';
+
+      allow create: if isSignedIn() &&
+        isValidId(lapId) &&
+        isTimekeeperOrAbove() &&
+        incoming().recordedByUid == request.auth.uid &&
+        incoming().keys().hasAll(['sessionId', 'entryId', 'driverName', 'carNumber', 'lapNumber', 'lapTimeMs', 'sectorTimesMs', 'isValid', 'invalidReason', 'isPersonalBest', 'isSessionBest', 'recordedByUid', 'timingSource', 'gpsAccuracyMeters', 'recordedAtEpochMs', 'visibility', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['sessionId', 'entryId', 'driverName', 'carNumber', 'lapNumber', 'lapTimeMs', 'sectorTimesMs', 'isValid', 'invalidReason', 'isPersonalBest', 'isSessionBest', 'recordedByUid', 'timingSource', 'gpsAccuracyMeters', 'recordedAtEpochMs', 'visibility', 'createdAt', 'updatedAt']) &&
+        isValidTimestampsCreate(incoming()) &&
+        isValidLap(incoming()) &&
+        exists(/databases/$(database)/documents/sessions/$(incoming().sessionId)) &&
+        exists(/databases/$(database)/documents/session_entries/$(incoming().entryId));
+
+      allow update: if isSignedIn() &&
+        isValidId(lapId) &&
+        isTimekeeperOrAbove() &&
+        isValidTimestampsUpdate(incoming()) &&
+        isValidLap(incoming()) &&
+        incoming().sessionId == existing().sessionId &&
+        incoming().entryId == existing().entryId &&
+        incoming().recordedByUid == existing().recordedByUid &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['isValid', 'invalidReason', 'lapTimeMs', 'sectorTimesMs', 'isPersonalBest', 'isSessionBest', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(lapId) && isSuperAdmin();
+    }
+
+    match /penalties/{penaltyId} {
+      allow get: if isSignedIn() && isValidId(penaltyId) && (resource == null || resource.data.visibility == 'PUBLIC');
+      allow list: if isSignedIn() && resource.data.visibility == 'PUBLIC';
+
+      allow create: if isSignedIn() &&
+        isValidId(penaltyId) &&
+        isRaceDirectorOrAbove() &&
+        incoming().issuedByUid == request.auth.uid &&
+        incoming().keys().hasAll(['sessionId', 'entryId', 'driverName', 'carNumber', 'penaltyType', 'secondsAdded', 'reason', 'issuedByUid', 'visibility', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['sessionId', 'entryId', 'driverName', 'carNumber', 'penaltyType', 'secondsAdded', 'reason', 'issuedByUid', 'visibility', 'createdAt', 'updatedAt']) &&
+        isValidTimestampsCreate(incoming()) &&
+        isValidPenalty(incoming()) &&
+        exists(/databases/$(database)/documents/sessions/$(incoming().sessionId)) &&
+        exists(/databases/$(database)/documents/session_entries/$(incoming().entryId));
+
+      allow update: if isSignedIn() &&
+        isValidId(penaltyId) &&
+        isSuperAdmin() &&
+        isValidTimestampsUpdate(incoming()) &&
+        isValidPenalty(incoming()) &&
+        incoming().issuedByUid == existing().issuedByUid;
+
+      allow delete: if isSignedIn() && isValidId(penaltyId) && isSuperAdmin();
+    }
+  }
+}

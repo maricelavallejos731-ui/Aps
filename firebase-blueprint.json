@@ -1,0 +1,248 @@
+{
+  "entities": {
+    "UserPrivate": {
+      "title": "UserPrivate",
+      "description": "Private user profile containing PII (email) accessible only to the owner and bootstrapped superadmin.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "RACE_DIRECTOR", "TIMEKEEPER", "SPECTATOR"] },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp" }
+      },
+      "required": ["uid", "email", "displayName", "role", "createdAt", "updatedAt"]
+    },
+    "UserDirectoryEntry": {
+      "title": "UserDirectoryEntry",
+      "description": "Non-PII staff and spectator role directory for RBAC verification and admin user management.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "RACE_DIRECTOR", "TIMEKEEPER", "SPECTATOR"] },
+        "isDirectoryVisible": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "role", "isDirectoryVisible", "createdAt", "updatedAt"]
+    },
+    "Championship": {
+      "title": "Championship",
+      "description": "Motorsport championship series managed by SuperAdmin.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "seasonYear": { "type": "integer" },
+        "category": { "type": "string" },
+        "status": { "type": "string", "enum": ["UPCOMING", "ACTIVE", "FINISHED"] },
+        "visibility": { "type": "string", "enum": ["PUBLIC"] },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "seasonYear", "category", "status", "visibility", "ownerId", "createdAt", "updatedAt"]
+    },
+    "Circuit": {
+      "title": "Circuit",
+      "description": "Racing circuit with sector configuration, measurement checkpoints, and vector path coordinates.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "country": { "type": "string" },
+        "countryCode": { "type": "string" },
+        "lengthKm": { "type": "number" },
+        "turnsCount": { "type": "integer" },
+        "sectorCount": { "type": "integer" },
+        "startFinishLabel": { "type": "string" },
+        "sectorSplits": { "type": "array" },
+        "measurementPoints": { "type": "array" },
+        "trackPoints": { "type": "array" },
+        "customImageUri": { "type": "string" },
+        "visibility": { "type": "string", "enum": ["PUBLIC"] },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "country", "countryCode", "lengthKm", "turnsCount", "sectorCount", "startFinishLabel", "sectorSplits", "measurementPoints", "trackPoints", "visibility", "ownerId", "createdAt", "updatedAt"]
+    },
+    "RaceEvent": {
+      "title": "RaceEvent",
+      "description": "Championship calendar Grand Prix event with practice, qualifying, and race schedules.",
+      "type": "object",
+      "properties": {
+        "championshipId": { "type": "string" },
+        "circuitId": { "type": "string" },
+        "circuitName": { "type": "string" },
+        "grandPrixName": { "type": "string" },
+        "country": { "type": "string" },
+        "countryCode": { "type": "string" },
+        "eventDateMillis": { "type": "integer" },
+        "practiceSchedule": { "type": "string" },
+        "qualifyingSchedule": { "type": "string" },
+        "raceSchedule": { "type": "string" },
+        "raceDurationLabel": { "type": "string" },
+        "status": { "type": "string", "enum": ["UPCOMING", "LIVE", "FINISHED"] },
+        "roundNumber": { "type": "integer" },
+        "visibility": { "type": "string", "enum": ["PUBLIC"] },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["championshipId", "circuitId", "circuitName", "grandPrixName", "country", "countryCode", "eventDateMillis", "practiceSchedule", "qualifyingSchedule", "raceSchedule", "raceDurationLabel", "status", "roundNumber", "visibility", "ownerId", "createdAt", "updatedAt"]
+    },
+    "TimingSession": {
+      "title": "TimingSession",
+      "description": "Live timing session state (Practice, Qualifying, Race) with session bests and flag control.",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+        "championshipId": { "type": "string" },
+        "circuitId": { "type": "string" },
+        "circuitName": { "type": "string" },
+        "sessionName": { "type": "string" },
+        "sessionType": { "type": "string", "enum": ["PRACTICE", "QUALIFYING", "RACE"] },
+        "status": { "type": "string", "enum": ["SCHEDULED", "ACTIVE", "PAUSED", "FINISHED"] },
+        "flagStatus": { "type": "string", "enum": ["GREEN", "YELLOW", "RED", "CHECKERED"] },
+        "timingMode": { "type": "string", "enum": ["MANUAL", "GPS", "EXTERNAL_BLE_API"] },
+        "totalLapsTarget": { "type": "integer" },
+        "durationMinutes": { "type": "integer" },
+        "startedAtEpochMs": { "type": "integer" },
+        "elapsedPausedMs": { "type": "integer" },
+        "bestSessionLapMs": { "type": "integer" },
+        "bestSessionLapDriverId": { "type": "string" },
+        "bestSector1Ms": { "type": "integer" },
+        "bestSector2Ms": { "type": "integer" },
+        "bestSector3Ms": { "type": "integer" },
+        "sectorCount": { "type": "integer" },
+        "visibility": { "type": "string", "enum": ["PUBLIC"] },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["eventId", "championshipId", "circuitId", "circuitName", "sessionName", "sessionType", "status", "flagStatus", "timingMode", "totalLapsTarget", "durationMinutes", "startedAtEpochMs", "elapsedPausedMs", "bestSessionLapMs", "bestSessionLapDriverId", "bestSector1Ms", "bestSector2Ms", "bestSector3Ms", "sectorCount", "visibility", "ownerId", "createdAt", "updatedAt"]
+    },
+    "SessionEntry": {
+      "title": "SessionEntry",
+      "description": "Driver and vehicle entry participating in a timing session.",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string" },
+        "eventId": { "type": "string" },
+        "championshipId": { "type": "string" },
+        "driverName": { "type": "string" },
+        "driverCode": { "type": "string" },
+        "nationality": { "type": "string" },
+        "countryCode": { "type": "string" },
+        "teamName": { "type": "string" },
+        "teamColorHex": { "type": "string" },
+        "carModel": { "type": "string" },
+        "carNumber": { "type": "integer" },
+        "driverStatus": { "type": "string", "enum": ["ON_TRACK", "IN_PITS", "RETIRED", "OUT_OF_SESSION"] },
+        "position": { "type": "integer" },
+        "lapsCompleted": { "type": "integer" },
+        "lastLapMs": { "type": "integer" },
+        "bestLapMs": { "type": "integer" },
+        "totalTimeMs": { "type": "integer" },
+        "currentSector1Ms": { "type": "integer" },
+        "currentSector2Ms": { "type": "integer" },
+        "currentSector3Ms": { "type": "integer" },
+        "bestSector1Ms": { "type": "integer" },
+        "bestSector2Ms": { "type": "integer" },
+        "bestSector3Ms": { "type": "integer" },
+        "penaltySeconds": { "type": "integer" },
+        "pointsAwarded": { "type": "integer" },
+        "hasFastestLap": { "type": "boolean" },
+        "visibility": { "type": "string", "enum": ["PUBLIC"] },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sessionId", "eventId", "championshipId", "driverName", "driverCode", "nationality", "countryCode", "teamName", "teamColorHex", "carModel", "carNumber", "driverStatus", "position", "lapsCompleted", "lastLapMs", "bestLapMs", "totalTimeMs", "currentSector1Ms", "currentSector2Ms", "currentSector3Ms", "bestSector1Ms", "bestSector2Ms", "bestSector3Ms", "penaltySeconds", "pointsAwarded", "hasFastestLap", "visibility", "ownerId", "createdAt", "updatedAt"]
+    },
+    "LapRecord": {
+      "title": "LapRecord",
+      "description": "Individual recorded lap with millisecond precision sector splits and source metadata.",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string" },
+        "entryId": { "type": "string" },
+        "driverName": { "type": "string" },
+        "carNumber": { "type": "integer" },
+        "lapNumber": { "type": "integer" },
+        "lapTimeMs": { "type": "integer" },
+        "sectorTimesMs": { "type": "array" },
+        "isValid": { "type": "boolean" },
+        "invalidReason": { "type": "string" },
+        "isPersonalBest": { "type": "boolean" },
+        "isSessionBest": { "type": "boolean" },
+        "recordedByUid": { "type": "string" },
+        "timingSource": { "type": "string", "enum": ["MANUAL", "GPS", "BLUETOOTH", "WIFI_API"] },
+        "gpsAccuracyMeters": { "type": "number" },
+        "recordedAtEpochMs": { "type": "integer" },
+        "visibility": { "type": "string", "enum": ["PUBLIC"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sessionId", "entryId", "driverName", "carNumber", "lapNumber", "lapTimeMs", "sectorTimesMs", "isValid", "invalidReason", "isPersonalBest", "isSessionBest", "recordedByUid", "timingSource", "gpsAccuracyMeters", "recordedAtEpochMs", "visibility", "createdAt", "updatedAt"]
+    },
+    "PenaltyRecord": {
+      "title": "PenaltyRecord",
+      "description": "Race Director penalty applied to a session entry.",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string" },
+        "entryId": { "type": "string" },
+        "driverName": { "type": "string" },
+        "carNumber": { "type": "integer" },
+        "penaltyType": { "type": "string", "enum": ["TIME_5S", "TIME_10S", "DRIVE_THROUGH", "GRID_DROP", "WARNING", "DISQUALIFIED"] },
+        "secondsAdded": { "type": "integer" },
+        "reason": { "type": "string" },
+        "issuedByUid": { "type": "string" },
+        "visibility": { "type": "string", "enum": ["PUBLIC"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sessionId", "entryId", "driverName", "carNumber", "penaltyType", "secondsAdded", "reason", "issuedByUid", "visibility", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserPrivate" },
+      "description": "Private user account documents containing PII."
+    },
+    "/user_directory/{userId}": {
+      "schema": { "$ref": "#/entities/UserDirectoryEntry" },
+      "description": "Role directory for RBAC enforcement and SuperAdmin role management."
+    },
+    "/championships/{championshipId}": {
+      "schema": { "$ref": "#/entities/Championship" },
+      "description": "Motorsport championships."
+    },
+    "/circuits/{circuitId}": {
+      "schema": { "$ref": "#/entities/Circuit" },
+      "description": "Circuit definitions, track map coordinates, and sector configurations."
+    },
+    "/race_events/{eventId}": {
+      "schema": { "$ref": "#/entities/RaceEvent" },
+      "description": "Championship calendar events."
+    },
+    "/sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/TimingSession" },
+      "description": "Live timing sessions and stopwatch state."
+    },
+    "/session_entries/{entryId}": {
+      "schema": { "$ref": "#/entities/SessionEntry" },
+      "description": "Drivers and live classification rows per session."
+    },
+    "/laps/{lapId}": {
+      "schema": { "$ref": "#/entities/LapRecord" },
+      "description": "Recorded lap times and sector splits."
+    },
+    "/penalties/{penaltyId}": {
+      "schema": { "$ref": "#/entities/PenaltyRecord" },
+      "description": "Official race control penalties."
+    }
+  }
+}

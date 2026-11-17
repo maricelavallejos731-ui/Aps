@@ -1,0 +1,6 @@
+{
+  "name": "Apex Racing Timing",
+  "description": "Sistema profesional de cronometraje automovilistico en vivo, sectores, campeonatos, control de sesiones y telemetria en tiempo real.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
